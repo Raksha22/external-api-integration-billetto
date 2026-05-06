@@ -1,6 +1,6 @@
 # External API Integration (Billetto Assessment)
 
-This project implements **Steps 1–2** of the [Billetto Rails test](../billetto_rails_test.md). Use this README for **setup and configuration**; see **`follow-up interview.md`** for step-by-step talking points and interview prep.
+This project implements **Steps 1–3** of the [Billetto Rails test](../billetto_rails_test.md). Use this README for **setup and configuration**; see **`follow-up interview.md`** for step-by-step talking points and interview prep.
 
 ## Assessment steps (what maps to what)
 
@@ -8,7 +8,7 @@ This project implements **Steps 1–2** of the [Billetto Rails test](../billetto
 |------|------------|---------------------|
 | **1** | Billetto API, ingestion, `Event` read model, listing UI | Done |
 | **2** | Clerk auth; voting only when signed in; **`clerk_user_id`** on vote facts in Rails Event Store | Done |
-| **3** | Vote counts on the listing (projection / read model from RES) | Not implemented yet |
+| **3** | Vote counts on the listing (projection / read model from RES) | Done |
 | **4** | Tests: models, auth gate, RES; optional browser tests for Clerk + voting | Partially done (no browser suite yet) |
 
 **Step 1 (done)**
@@ -26,7 +26,13 @@ This project implements **Steps 1–2** of the [Billetto Rails test](../billetto
 - **Account Portal return URL**: links append **`redirect_url`** (full URL back to this app’s **`/`**) so users land on the events page after auth instead of Clerk’s generic default ([direct links](https://clerk.com/docs/guides/account-portal/direct-links)).
 - **Voting** (`POST /events/:id/vote` with `direction=up|down`) is allowed only when **`clerk.user?`** is true; guests are redirected to sign-in with **`allow_other_host: true`** (Rails 7.1 safe redirects).
 - **Vote traceability**: **`Guidelines::EventUpvoted`** / **`Guidelines::EventDownvoted`** include **`clerk_user_id`** and **`event_external_id`**; streams follow the Developer’s Guide multi-stream pattern.
-- **UX**: Successful vote sets flash **`notice: "Vote recorded."`** on the listing; there are **no per-event vote totals yet** (Step 3). Stale **“Please sign in to vote.”** flash is cleared on **`events#index`** once you are signed in.
+- **UX**: Successful vote sets flash **`notice: "Vote recorded."`** on the listing. Stale **“Please sign in to vote.”** flash is cleared on **`events#index`** once you are signed in.
+
+**Step 3 (done — Rails Event Store projection)**
+
+- **`events.upvotes_count`** / **`events.downvotes_count`**: denormalized read-model columns on **`Guidelines::Event`**, maintained by **`Guidelines::ProjectEventVoteCounts`**, registered via **`Guidelines.subscriptions`** → **`ApplicationSubscriptions.subscribe_rails_event_store!`** in **`config/initializers/rails_event_store.rb`** (same **`Rails.configuration.event_store`** instance the command handler uses).
+- **Facts**: **`Guidelines::EventUpvoted`** / **`Guidelines::EventDownvoted`** (unchanged payload: **`event_external_id`**, **`clerk_user_id`**).
+- **Backfill**: migration **`AddVoteCountsToEvents`** calls **`Guidelines.rebuild_vote_counts!`** after adding columns; run it again from **`bin/rails console`** if you restore an old DB dump with vote facts but missing counters.
 
 ## Stack
 
@@ -103,21 +109,30 @@ Browsers treat **`http://localhost:5173`** and **`http://localhost:3000`** as **
 - From UI: click **Sync Events** on the events page.
 - From CLI: `bin/rails billetto:import_events`
 
-## Voting (Step 2)
+## Voting (Steps 2–3)
 
 - On the events list, **Like** / **Dislike** submit `POST` to `/events/:event_id/vote` with `direction` `up` or `down`.
 - Requires an active **Clerk session**; otherwise you are redirected to sign-in.
-- Vote outcomes are stored as Rails Event Store facts (inspect `event_store_events.event_type` for `EventUpvoted` / `EventDownvoted`). **Vote counts on the listing** are part of **Step 3** in the test brief (not implemented here).
+- Vote outcomes are stored as Rails Event Store facts (inspect `event_store_events.event_type` for `EventUpvoted` / `EventDownvoted`).
+- Each card shows **like** and **dislike** totals from **`upvotes_count`** / **`downvotes_count`** (projection driven by those facts).
 
 ## Testing
 
 - Install gems first: `bundle install` (if installing gems hits permission errors on your machine, use `bundle config set path vendor/bundle` once in this directory, then `bundle install` again).
-- Run tests: `bin/rspec` (or `bundle exec ruby -S rspec` if `bundle exec rspec` is not found on your Ruby/Bundler setup).
+- Run tests: `bin/rspec` (or `bundle exec ruby -S rspec` if `bundle exec rspec` is not found on your Ruby/Bundler setup). The suite enforces **≥ 90% line coverage** via SimpleCov (`spec/spec_helper.rb`).
 - **Native gem mismatch (`incompatible library version` for `stringio.so`, `json.so`, `bootsnap.so`, …):** extensions in `vendor/bundle` were built for a **different Ruby** than the one running `bin/rspec` (common after upgrading Ruby, switching rbenv/rvm/system, or copying the project). Confirm **`ruby -v`** matches the Gemfile (**3.0.2**), then reinstall gems for that interpreter:
   - **`rm -rf vendor/bundle && bundle install`** (recommended), or
   - **`bundle pristine --all`** (rebuild every native extension in the current bundle path).
     Bootsnap load failures are also tolerated in **`config/boot.rb`** (the app boots without Bootsnap if the `.so` cannot load), but **`stringio` / `json`** must match your Ruby or RSpec cannot start—there is no runtime workaround beyond reinstalling.
 - Coverage report: `coverage/index.html`
+
+### Manual check — Step 3 (vote counts + projection)
+
+1. **`bin/rails db:migrate`** — ensures **`upvotes_count`** / **`downvotes_count`** exist (and backfills from existing vote facts).
+2. **`bin/rails server`** → open the app root (e.g. `http://localhost:3000`).
+3. **Sync events** if the listing is empty, then **sign in with Clerk** on this same host/port (see README Clerk notes).
+4. **Like** / **Dislike** an event; expect flash **“Vote recorded.”** and the card’s **Votes: … like · … dislike** line to increment.
+5. Optional console: **`Guidelines.rebuild_vote_counts!`** after restoring a DB dump to recompute counters from Rails Event Store.
 
 ## Design Notes
 
@@ -127,7 +142,7 @@ This app follows the internal [Developer's Guide](../Developer's_Guide.md) patte
 - Bounded context `Guidelines` lives under `app/models/guidelines/` with facts (`PublicEventsSynced`, `EventUpvoted`, `EventDownvoted`), commands (`SyncPublicEvents`, `RecordEventVote`), handler (`Guidelines::Service`), and importer (`Guidelines::PublicEventsImporter`).
 - **`EventVotesController`** issues **`RecordEventVote`** through the command bus only after **`require_clerk_session!`** (Developer’s Guide: no side-stepping the bus; auth gate at the HTTP boundary).
 - Third-party HTTP lives under `app/integrations/billetto` (`Billetto::Client`) as an ACL-style adapter.
-- `Guidelines::Event` is the persisted aggregate read model; sync publishes `PublicEventsSynced` via `rails_event_store`.
+- `Guidelines::Event` is the persisted aggregate read model; sync publishes `PublicEventsSynced` via `rails_event_store`. Vote totals use the same read model: **`Guidelines::ProjectEventVoteCounts`** handles **`EventUpvoted`** / **`EventDownvoted`**; **`Guidelines.subscriptions`** merges into **`ApplicationSubscriptions`**, which **`subscribe_rails_event_store!`** applies when the RES client is built.
 - Shared plumbing: `lib/command/` (bus + handler), `lib/fact.rb`, `lib/object_repository.rb`, `lib/application_subscriptions.rb` (merge point for module subscriptions).
 
 ## Assumptions
@@ -148,6 +163,6 @@ This app follows the internal [Developer's Guide](../Developer's_Guide.md) patte
 - **Unsafe redirect / 500 when voting while signed out**: Fixed in-app with **`allow_other_host: true`** to Clerk’s host; if you fork this, keep that on the vote gate redirect.
 - **Redirect loops or malformed `redirect_url` query**: Ensure Clerk allowed origins / return URLs match **`request.base_url`**; this app builds **`redirect_url`** as a full URL to **`/`** via `ApplicationController#append_clerk_redirect_url`.
 - **Signed in in nav but still see “Please sign in to vote.”**: Usually stale flash after returning from Clerk — **`EventsController`** clears that alert on **`index`** when **`clerk.user?`**; refresh the listing if needed.
-- **Vote succeeds but UI looks unchanged**: Expect a green **“Vote recorded.”** notice only; **vote counts on cards** are Step 3.
+- **Vote succeeds but counts look wrong**: Run **`Guidelines.rebuild_vote_counts!`** in console after restoring DB from backup or changing projection code.
 - **Redirect loops or missing session**: Match application URL to how you open the app (`127.0.0.1` vs `localhost`), allow cookies, and sign in on **the same host/port** as the Rails app.
 - **Still “Signed in” after Sign out:** the nav uses **`Clerk.signOut({ redirectUrl: root_url })`** when Clerk JS is loaded so cookies/session clear before reload. Ensure **`CLERK_PUBLISHABLE_KEY`** is set. **`CLERK_SIGN_OUT_URL`** must still be the hosted **`…/sign-out`** URL (fallback if JS fails).

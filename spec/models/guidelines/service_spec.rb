@@ -5,6 +5,11 @@ require "rails_helper"
 RSpec.describe Guidelines::Service do
   let(:service) { described_class.new }
 
+  it "exposes event_store and command_bus from Command::Handler" do
+    expect(service.event_store).to eq(Rails.configuration.event_store)
+    expect(service.command_bus).to eq(Rails.configuration.command_bus)
+  end
+
   describe "#sync_public_events" do
     let(:importer_result) do
       Guidelines::PublicEventsImporter::Result.new(
@@ -95,6 +100,28 @@ RSpec.describe Guidelines::Service do
           "Guidelines$event$service_vote_evt"
         ]
       )
+
+      expect(event.reload.upvotes_count).to eq(1)
+      expect(event.reload.downvotes_count).to eq(0)
+    end
+
+    it "increments downvotes_count when publishing EventDownvoted" do
+      down_event = Guidelines::Event.create!(
+        external_id: "service_vote_evt_down",
+        title: "Service Vote Event Down",
+        starts_at: 1.day.from_now
+      )
+
+      cmd = Guidelines::RecordEventVote.new(
+        event_external_id: down_event.external_id,
+        clerk_user_id: "user_down",
+        direction: "down"
+      )
+
+      service.record_event_vote(cmd)
+
+      expect(down_event.reload.downvotes_count).to eq(1)
+      expect(down_event.reload.upvotes_count).to eq(0)
     end
 
     it "raises when event external id is unknown" do

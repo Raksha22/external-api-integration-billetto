@@ -8,6 +8,22 @@ RSpec.describe "Events", type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Billetto Events")
     end
+
+    it "shows vote totals from the read model on each event card" do
+      Guidelines::Event.create!(
+        external_id: "votes_ui_evt",
+        title: "Listed With Votes",
+        starts_at: 1.day.from_now,
+        upvotes_count: 4,
+        downvotes_count: 1
+      )
+
+      get events_path
+
+      expect(response.body).to include("Votes:")
+      expect(response.body).to include("4 like")
+      expect(response.body).to include("1 dislike")
+    end
   end
 
   describe "POST /events/sync" do

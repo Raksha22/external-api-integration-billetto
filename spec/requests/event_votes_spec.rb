@@ -60,6 +60,7 @@ RSpec.describe "Event votes", type: :request do
         expect(payload).to include("vote_spec_evt")
 
         expect(response).to redirect_to(events_path)
+        expect(event.reload.upvotes_count).to eq(1)
       end
 
       it "records EventDownvoted for direction down" do
@@ -70,6 +71,8 @@ RSpec.describe "Event votes", type: :request do
             "SELECT COUNT(*) FROM event_store_events WHERE event_type LIKE '%EventDownvoted%'"
           ).to_i
         end.by(1))
+
+        expect(event.reload.downvotes_count).to eq(1)
       end
 
       it "does not append facts and redirects with alert when direction is invalid" do

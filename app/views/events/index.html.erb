@@ -27,6 +27,10 @@
               <p><strong>Venue:</strong> <%= event.venue_name %></p>
             <% end %>
             <p><%= truncate(event.description.to_s, length: 220) %></p>
+            <p style="margin-top: 0.5rem; font-size: 0.95rem;">
+              <strong>Votes:</strong>
+              <%= event.upvotes_count %> like · <%= event.downvotes_count %> dislike
+            </p>
             <% if clerk.user? %>
               <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                 <%= button_to "Like", event_vote_path(event), params: { direction: "up" }, form: { style: "display: inline;" } %>
