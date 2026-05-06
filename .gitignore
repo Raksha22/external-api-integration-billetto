@@ -7,6 +7,9 @@
 # Ignore bundler config.
 /.bundle
 
+# Local gem installs (e.g. after `bundle config set path vendor/bundle`)
+/vendor/bundle
+
 # Ignore local env files; keep committed templates for onboarding.
 /.env
 /.env.*

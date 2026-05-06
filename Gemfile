@@ -16,6 +16,8 @@ gem "puma", ">= 5.0"
 
 gem "faraday"
 gem "rails_event_store", "~> 2.18"
+# Pin 4.x for Rails 7.1 + Ruby 3.0; 5.x targets newer stacks (see rubygems.org/gems/clerk-sdk-ruby).
+gem "clerk-sdk-ruby", "~> 4.2", require: "clerk"
 
 # Use Redis adapter to run Action Cable in production
 # gem "redis", ">= 4.0.1"

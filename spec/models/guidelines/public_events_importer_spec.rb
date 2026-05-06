@@ -68,5 +68,20 @@ RSpec.describe Guidelines::PublicEventsImporter do
       expect(result.skipped_count).to eq(1)
       expect(result.errors).not_to be_empty
     end
+
+    it "skips rows when starts_at cannot be parsed" do
+      allow(client).to receive(:list_public_events).and_return(
+        [
+          { "id" => "bad_date", "title" => "Bad date", "starts_at" => "not-a-timestamp" },
+          { "id" => "good", "title" => "Good", "starts_at" => "2026-01-05T10:00:00Z" }
+        ]
+      )
+
+      result = service.call(limit: 50)
+
+      expect(result.imported_count).to eq(1)
+      expect(result.skipped_count).to eq(1)
+      expect(result.errors.join).to match(/Invalid starts_at|starts_at/)
+    end
   end
 end

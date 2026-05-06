@@ -5,6 +5,7 @@ module Guidelines
     include Command::Handler
 
     handles SyncPublicEvents, :sync_public_events
+    handles RecordEventVote, :record_event_vote
 
     def initialize(importer: nil, client: nil)
       @importer_class = importer
@@ -24,6 +25,35 @@ module Guidelines
       )
       event_store.publish(fact, stream_name: fact.stream_names.first)
       result
+    end
+
+    def record_event_vote(cmd)
+      Guidelines::Event.find_by!(external_id: cmd.event_external_id)
+
+      fact =
+        if cmd.up?
+          EventUpvoted.strict(
+            data: {
+              event_external_id: cmd.event_external_id,
+              clerk_user_id: cmd.clerk_user_id
+            }
+          )
+        else
+          EventDownvoted.strict(
+            data: {
+              event_external_id: cmd.event_external_id,
+              clerk_user_id: cmd.clerk_user_id
+            }
+          )
+        end
+
+      primary = fact.stream_names.first
+      event_store.publish(fact, stream_name: primary)
+      secondary = fact.stream_names[1]
+      if secondary.present?
+        event_store.link(fact.event_id, stream_name: secondary, expected_version: :any)
+      end
+      nil
     end
 
     private

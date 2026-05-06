@@ -27,6 +27,14 @@
               <p><strong>Venue:</strong> <%= event.venue_name %></p>
             <% end %>
             <p><%= truncate(event.description.to_s, length: 220) %></p>
+            <% if clerk.user? %>
+              <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <%= button_to "Like", event_vote_path(event), params: { direction: "up" }, form: { style: "display: inline;" } %>
+                <%= button_to "Dislike", event_vote_path(event), params: { direction: "down" }, form: { style: "display: inline;" } %>
+              </div>
+            <% else %>
+              <p style="margin-top: 0.75rem;"><%= link_to "Sign in", clerk_sign_in_url %> or <%= link_to "sign up", clerk_sign_up_url %> to vote.</p>
+            <% end %>
           </article>
         </li>
       <% end %>

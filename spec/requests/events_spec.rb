@@ -29,5 +29,44 @@ RSpec.describe "Events", type: :request do
       follow_redirect!
       expect(response.body).to include("Sync complete: 2 imported, 1 updated")
     end
+
+    it "mentions skipped rows when the importer skipped some payloads" do
+      result = Guidelines::PublicEventsImporter::Result.new(
+        imported_count: 0,
+        updated_count: 0,
+        skipped_count: 3,
+        errors: ["bad row"]
+      )
+
+      bus = instance_double(Command::Bus)
+      allow(Rails.configuration).to receive(:command_bus).and_return(bus)
+      allow(bus).to receive(:call).and_return(result)
+
+      post sync_events_path
+
+      follow_redirect!
+      expect(response.body).to include("3 skipped")
+    end
+
+    it "redirects with alert when sync raises Billetto::Error" do
+      bus = instance_double(Command::Bus)
+      allow(Rails.configuration).to receive(:command_bus).and_return(bus)
+      allow(bus).to receive(:call).and_raise(Billetto::Client::RequestFailedError.new("upstream failure"))
+
+      post sync_events_path
+
+      expect(response).to redirect_to(events_path)
+      follow_redirect!
+      expect(response.body).to include("Billetto sync failed")
+      expect(response.body).to include("upstream failure")
+    end
+
+    it "redirects with alert when sync limit is out of range" do
+      post sync_events_path, params: { limit: 101 }
+
+      expect(response).to redirect_to(events_path)
+      follow_redirect!
+      expect(response.body).to match(/100/)
+    end
   end
 end

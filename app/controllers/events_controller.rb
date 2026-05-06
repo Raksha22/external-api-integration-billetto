@@ -1,4 +1,6 @@
 class EventsController < ApplicationController
+  before_action :discard_stale_vote_sign_in_flash, only: [:index]
+
   def index
     @events = Guidelines::Event.ordered
   end
@@ -21,6 +23,11 @@ class EventsController < ApplicationController
   end
 
   private
+
+  # Flash survives the Clerk redirect; once signed in, drop the stale vote gate alert before rendering.
+  def discard_stale_vote_sign_in_flash
+    flash.delete(:alert) if clerk.user? && flash[:alert] == ApplicationController::CLERK_VOTE_SIGN_IN_ALERT
+  end
 
   def sync_limit_param
     v = params[:limit].presence&.to_i

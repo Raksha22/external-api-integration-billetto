@@ -10,6 +10,37 @@
   </head>
 
   <body>
+    <nav style="max-width: 920px; margin: 0 auto; padding: 1rem; font-family: Arial, sans-serif; border-bottom: 1px solid #e5e7eb; display: flex; gap: 1rem; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+      <% if clerk.user? %>
+        <span>Signed in<% if clerk.user_id.present? %> (<%= clerk.user_id %>)<% end %></span>
+        <%= link_to "Sign out", clerk_sign_out_url %>
+      <% else %>
+        <%= link_to "Sign in", clerk_sign_in_url %>
+        <%= link_to "Sign up", clerk_sign_up_url %>
+      <% end %>
+    </nav>
+    <% if Rails.env.development? && !clerk.user? %>
+      <p style="max-width: 920px; margin: 0 auto; padding: 0.75rem 1rem; font-size: 0.875rem; color: #374151; background: #fefce8; border-bottom: 1px solid #fde047;">
+        Clerk sessions are per browser origin (port matters). Signing in on the Vite app (port 5173) does not sign you in here.
+        Use <strong>Sign in</strong> above on this same address (<%= request.host_with_port %>) to vote on events.
+      </p>
+    <% end %>
     <%= yield %>
+
+    <%# Clerk browser SDK: syncs dev-browser cookie + session with Rack middleware (see https://clerk.com/docs/js-frontend/getting-started/quickstart) %>
+    <% origin = clerk_frontend_api_origin %>
+    <% pk = clerk_publishable_key_for_js %>
+    <% if origin.present? && pk.present? %>
+      <script defer crossorigin="anonymous" src="<%= origin %>/npm/@clerk/ui@1/dist/ui.browser.js" type="text/javascript"></script>
+      <script defer crossorigin="anonymous" data-clerk-publishable-key="<%= pk %>" src="<%= origin %>/npm/@clerk/clerk-js@5/dist/clerk.browser.js" type="text/javascript"></script>
+      <script>
+        window.addEventListener("load", async function () {
+          if (typeof Clerk === "undefined") return;
+          try {
+            await Clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor } });
+          } catch (e) {}
+        });
+      </script>
+    <% end %>
   </body>
 </html>

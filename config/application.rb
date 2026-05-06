@@ -18,6 +18,17 @@ require "action_cable/engine"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
+# Load `.env` once (development only): DB, Billetto, Clerk keys and Account Portal URLs.
+# Dotenv.overload replaces empty exported vars. Skip test/production so specs keep rails_helper placeholders.
+if ENV.fetch("RAILS_ENV", "development") == "development"
+  begin
+    require "dotenv"
+    dotenv_path = File.expand_path("../.env", __dir__)
+    Dotenv.overload(dotenv_path) if File.exist?(dotenv_path)
+  rescue LoadError
+  end
+end
+
 module ExternalApiIntegration
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
