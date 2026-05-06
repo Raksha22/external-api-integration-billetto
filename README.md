@@ -59,6 +59,7 @@ Copy **`.env.example`** → **`.env`** and fill in real values. **`Dotenv.overlo
 
 - Use **one Clerk application**: publishable key, secret key, and Account Portal host must belong to the **same** instance (avoid mixing `pk_` from app A with `sk_` from app B).
 - Copy **Sign in**, **Sign up**, and **Sign out** URLs into `.env`. This app **adds `redirect_url`** pointing at `http://localhost:3000/` (or your deployed origin) when building links — ensure allowed redirect origins in Clerk match how you run the app.
+- If the Dashboard **Signing out** section shows **after sign out → Sign-in page on Account Portal** (`…/sign-in`), that is Clerk’s default destination **after** logout — change it to your **Rails URL** if you want the nav back on your app (see **`docs/CLERK_DASHBOARD.md` §2b**).
 - **Rails vs Vite (`clerk-react`)**: see **Single sign-in across React and Rails** below.
 
 ### Single sign-in across React and Rails
@@ -74,6 +75,8 @@ Browsers treat **`http://localhost:5173`** and **`http://localhost:3000`** as **
 3. **Production multi-domain** — Clerk supports patterns like **satellite domains** when you control real domains; localhost ports are still two origins until you unify URLs.
 
 **Practical default for this assessment:** sign in using the **Sign in** link on the **Rails** events page when you want to vote.
+
+**Sign out mirrors sign-in:** If you use **separate** servers (**React on 5173**, **Rails on 3000**), signing out in **React does not** sign you out on **Rails** — Clerk cookies are scoped per **origin**. Rails can still show **Sign in** leading to a quick return because your **`*.accounts.dev`** session or a **`localhost:3000`** cookie may still be active. **Fix:** use **Sign out** on Rails too, clear cookies for both hosts, or run **only** the unified flow (**`http://localhost:5173/billetto`**) so one origin shares one session.
 
 ## Setup
 
@@ -147,3 +150,4 @@ This app follows the internal [Developer's Guide](../Developer's_Guide.md) patte
 - **Signed in in nav but still see “Please sign in to vote.”**: Usually stale flash after returning from Clerk — **`EventsController`** clears that alert on **`index`** when **`clerk.user?`**; refresh the listing if needed.
 - **Vote succeeds but UI looks unchanged**: Expect a green **“Vote recorded.”** notice only; **vote counts on cards** are Step 3.
 - **Redirect loops or missing session**: Match application URL to how you open the app (`127.0.0.1` vs `localhost`), allow cookies, and sign in on **the same host/port** as the Rails app.
+- **Still “Signed in” after Sign out:** the nav uses **`Clerk.signOut({ redirectUrl: root_url })`** when Clerk JS is loaded so cookies/session clear before reload. Ensure **`CLERK_PUBLISHABLE_KEY`** is set. **`CLERK_SIGN_OUT_URL`** must still be the hosted **`…/sign-out`** URL (fallback if JS fails).
