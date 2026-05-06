@@ -1,6 +1,6 @@
 # External API Integration (Billetto Assessment)
 
-This project implements **Steps 1–3** of the [Billetto Rails test](../billetto_rails_test.md). Use this README for **setup and configuration**; see **`follow-up interview.md`** for step-by-step talking points and interview prep.
+This project implements **Steps 1–4** of the [Billetto Rails test](../billetto_rails_test.md). Use this README for **setup and configuration**; see **`follow-up interview.md`** for step-by-step talking points and interview prep.
 
 ## Assessment steps (what maps to what)
 
@@ -9,7 +9,7 @@ This project implements **Steps 1–3** of the [Billetto Rails test](../billetto
 | **1** | Billetto API, ingestion, `Event` read model, listing UI | Done |
 | **2** | Clerk auth; voting only when signed in; **`clerk_user_id`** on vote facts in Rails Event Store | Done |
 | **3** | Vote counts on the listing (projection / read model from RES) | Done |
-| **4** | Tests: models, auth gate, RES; optional browser tests for Clerk + voting | Partially done (no browser suite yet) |
+| **4** | Tests: models, auth gate, RES; browser tests for Clerk nav + voting | Done |
 
 **Step 1 (done)**
 
@@ -34,13 +34,22 @@ This project implements **Steps 1–3** of the [Billetto Rails test](../billetto
 - **Facts**: **`Guidelines::EventUpvoted`** / **`Guidelines::EventDownvoted`** (unchanged payload: **`event_external_id`**, **`clerk_user_id`**).
 - **Backfill**: migration **`AddVoteCountsToEvents`** calls **`Guidelines.rebuild_vote_counts!`** after adding columns; run it again from **`bin/rails console`** if you restore an old DB dump with vote facts but missing counters.
 
+**Step 4 (done — RSpec + Capybara)**
+
+- **Model tests**: **`Guidelines::Event`** validations and related commands/importer/service coverage under **`spec/models/guidelines/`**.
+- **Authentication tests**: request specs gate **`POST …/vote`** for guests; system specs assert nav links (sign-in / sign-up / sign-out + **`redirect_url`**).
+- **Event Store tests**: vote facts, projections, **`Guidelines.rebuild_vote_counts!`**, **`ApplicationSubscriptions`** wiring.
+- **Browser (system) tests**: **`spec/system/`** uses **Capybara** with the **`rack_test`** driver by default (HTML + forms + redirects, no Chromium). Optional **`CAPYBARA_JS_DRIVER=cuprite`** for headless Chrome when you have Chromium installed.
+- **Skip system specs**: **`SKIP_SYSTEM_SPECS=1 bundle exec rspec`** if you only want unit/request coverage.
+
 ## Stack
 
 - Ruby `3.0.2`
 - Rails `7.1.6`
 - PostgreSQL
 - RSpec (`rspec-rails`)
-- Coverage (`simplecov`)
+- Capybara + Cuprite (group **test**, for **`spec/system`**)
+- Coverage (`simplecov`, minimum **90%** line coverage)
 
 ## Configuration reference
 
@@ -125,6 +134,7 @@ Browsers treat **`http://localhost:5173`** and **`http://localhost:3000`** as **
   - **`bundle pristine --all`** (rebuild every native extension in the current bundle path).
     Bootsnap load failures are also tolerated in **`config/boot.rb`** (the app boots without Bootsnap if the `.so` cannot load), but **`stringio` / `json`** must match your Ruby or RSpec cannot start—there is no runtime workaround beyond reinstalling.
 - Coverage report: `coverage/index.html`
+- **System / browser specs** (`spec/system/`): run with the full suite by default. **`SKIP_SYSTEM_SPECS=1`** omits them. **`CAPYBARA_JS_DRIVER=cuprite`** uses headless Chromium (install **`chromium`** / Chrome); default **`rack_test`** needs no browser.
 
 ### Manual check — Step 3 (vote counts + projection)
 
@@ -144,6 +154,7 @@ This app follows the internal [Developer's Guide](../Developer's_Guide.md) patte
 - Third-party HTTP lives under `app/integrations/billetto` (`Billetto::Client`) as an ACL-style adapter.
 - `Guidelines::Event` is the persisted aggregate read model; sync publishes `PublicEventsSynced` via `rails_event_store`. Vote totals use the same read model: **`Guidelines::ProjectEventVoteCounts`** handles **`EventUpvoted`** / **`EventDownvoted`**; **`Guidelines.subscriptions`** merges into **`ApplicationSubscriptions`**, which **`subscribe_rails_event_store!`** applies when the RES client is built.
 - Shared plumbing: `lib/command/` (bus + handler), `lib/fact.rb`, `lib/object_repository.rb`, `lib/application_subscriptions.rb` (merge point for module subscriptions).
+- Step 4: **`spec/system/`** exercises listing + Clerk nav + voting in Capybara (see **Testing**).
 
 ## Assumptions
 

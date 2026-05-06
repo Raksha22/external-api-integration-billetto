@@ -38,6 +38,9 @@ rescue ActiveRecord::PendingMigrationError => e
   abort e.to_s.strip
 end
 RSpec.configure do |config|
+  # Step 4 browser specs need Chromium (Cuprite). Skip with SKIP_SYSTEM_SPECS=1 if unavailable.
+  config.filter_run_excluding type: :system if ENV["SKIP_SYSTEM_SPECS"].present?
+
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
   config.fixture_paths = [
     Rails.root.join('spec/fixtures')

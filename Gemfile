@@ -45,6 +45,11 @@ group :development, :test do
   gem "simplecov", require: false
 end
 
+group :test do
+  gem "capybara", ">= 3.39"
+  gem "cuprite"
+end
+
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
