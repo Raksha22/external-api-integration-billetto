@@ -1,0 +1,35 @@
+<main style="max-width: 920px; margin: 2rem auto; font-family: Arial, sans-serif;">
+  <h1>Billetto Events</h1>
+
+  <% if notice.present? %>
+    <p style="padding: 0.75rem; background: #ecfdf5; color: #065f46;"><%= notice %></p>
+  <% end %>
+
+  <% if alert.present? %>
+    <p style="padding: 0.75rem; background: #fef2f2; color: #991b1b;"><%= alert %></p>
+  <% end %>
+
+  <%= button_to "Sync Events", sync_events_path, method: :post, form: { style: "margin-bottom: 1.5rem;" } %>
+
+  <% if @events.empty? %>
+    <p>No events imported yet. Click "Sync Events" to fetch data from Billetto.</p>
+  <% else %>
+    <ul style="list-style: none; padding: 0; display: grid; gap: 1rem;">
+      <% @events.each do |event| %>
+        <li style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem;">
+          <article>
+            <h2><%= event.title %></h2>
+            <p><strong>Date:</strong> <%= l(event.starts_at, format: :long) %></p>
+            <% if event.image_url.present? %>
+              <img src="<%= event.image_url %>" alt="<%= event.title %>" style="max-width: 240px; border-radius: 6px;">
+            <% end %>
+            <% if event.venue_name.present? %>
+              <p><strong>Venue:</strong> <%= event.venue_name %></p>
+            <% end %>
+            <p><%= truncate(event.description.to_s, length: 220) %></p>
+          </article>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+</main>
